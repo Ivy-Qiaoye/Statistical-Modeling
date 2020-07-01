@@ -1,0 +1,755 @@
+---
+title: "Statistical Relationship Explore Between Literacy Rate and Other National Factors"
+author: "Qiaoye Zhang"
+date: "March 26, 2019"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#packages needed 
+library(dplyr)
+library(data.table)
+library(usdm)
+library(broom)
+library(gridExtra)
+library(tidyverse)
+library(leaps)
+library(DAAG)
+
+#for plots
+theme.info <- theme(plot.title = element_text(size=16, hjust=0.5),
+                    axis.title = element_text(size=14),
+                    axis.text = element_text(size=14))
+
+```
+
+EXECUTIVE SUMMARY
+
+This paper explores a regrssion model between literacy rate and other national statistics variables, trying to find factors influence literacy performance inside a country. After selecting 10 explanatory variables and run analysis, we finalized the model with log(GDP), primary completion rate and log(primary enrollment rate).
+
+INTRODUCTION
+
+Literacy ability is the ability of someone can read and write with the understanding of a simple and short paragraph in their normal daily life. Adult literacy rate is the percentage of people with this ability and ages 15 and above. (World Bank) In this study, we picked up 10 variables from World Bank as explanatory variables to explore their relationship with literacy rate and to describe this relationship by a regression model.
+
+DATA 
+
+The data set was constructed from the World Bank official website. The 10 explanatory variables are agricultural sector value added ( % of GDP), GDP per capita ( US$ ), World Bank estimated GINI index ( the area between the Lorenz curve and a hypothetical line of absolute equality), government total expenditure on education (% of government expenditure), life expectancy of a newborn infant under prevailing pattern of mortality (years), undernourishment rate which is the population below minimum level of dietary energy consumption ( % of population), primary education completion rate (% of relevant age group), primary education enrollment rate ( % of relevant age group), pupil to teacher rate, and rural population. 
+We believe these 10 variables are related to the nation literacy ability to some extent. Agricultural value,GDP,GINI index and undernourishment rate reveal a country economic level, while primary enrollment and completion, pupil to teacher rate are directly related to literacy ability. Life expactency, rural population and education expenditure could influence the affact development of literacy people. We tried to cover kinds of aspects when selected them.
+This study focused on data between ten years (2007-2016). We took the mean of each variable over this period as the value to analyze later. Since there are many missing values, we calculated with the exact numbers of years have values rather than general 10. Countries with missing values were dropped after merged 10 explanatory variables with literacy rate together. In total, our final dataset has 96 countries after data cleaning process. Figure 1 is the basic summary graphs of these variables.
+
+
+```{r,echo=FALSE,results='hide'}
+
+################################################
+############## DATA PART #######################
+################################################
+
+#read and load data from 2007-2016#
+#calculate mean#
+
+x1 <- fread("Literacy rate.csv", header = TRUE,
+            select = c("Country Name","2007","2008","2009", "2010",
+                        "2011","2012","2013","2014","2015","2016"))
+literacy.rate <- transform(x1,literacy = rowMeans(x1[,2:11], na.rm = TRUE))
+
+x2 <- fread("Agriculture and other value added.csv", header = TRUE,
+            select = c("Country Name","2007","2008","2009",
+                       "2010","2011","2012","2013","2014","2015","2016"))
+agriculture <- transform(x2,agri = rowMeans(x2[,2:11], na.rm = TRUE))
+
+x3 <- fread("GDP per Capita.csv", header = TRUE,
+            select = c("Country Name","2007","2008","2009",                                                         "2010","2011","2012","2013","2014","2015","2016"))
+GDP <- transform(x3,GDP = rowMeans(x3[,2:11], na.rm = TRUE))
+
+x4 <- fread("Gini.csv", header = TRUE,
+            select = c("Country Name","2007","2008","2009",                                                         "2010","2011","2012","2013","2014","2015","2016"))
+gini <- transform(x4,gini = rowMeans(x4[,2:11], na.rm = TRUE))
+
+x5 <- fread("Government Expenditure on Education.csv", header = TRUE,
+            select = c("Country Name","2007","2008","2009",                                                         "2010","2011","2012","2013","2014","2015","2016"))
+govern.expense <- transform(x5,edu = rowMeans(x5[,2:11], na.rm = TRUE))
+
+x6 <- fread("Life Expectancy.csv", header = TRUE,
+            select = c("Country Name","2007","2008","2009",                                                         "2010","2011","2012","2013","2014","2015","2016"))
+life.expectancy <- transform(x6,life = rowMeans(x6[,2:11], na.rm = TRUE))
+
+x7 <- fread("Percentage of undernourishment.csv", header = TRUE,
+            select = c("Country Name","2007","2008","2009",                                                         "2010","2011","2012","2013","2014","2015","2016"))
+undernourishment <- transform(x7,unourish = rowMeans(x7[,2:11], na.rm = TRUE))
+
+x8 <- fread("primary completion.csv", header = TRUE,
+            select = c("Country Name","2007","2008","2009",                                                         "2010","2011","2012","2013","2014","2015","2016"))
+primary.completion <- transform(x8,pcompl = rowMeans(x8[,2:11], na.rm = TRUE))
+
+x9 <- fread("Primary School Enrollment.csv", header = TRUE,
+            select = c("Country Name","2007","2008","2009",                                                         "2010","2011","2012","2013","2014","2015","2016"))
+primary.enrollment <- transform(x9,penroll = rowMeans(x9[,2:11], na.rm = TRUE))
+
+x10 <- fread("pupils to teachers.csv", header = TRUE,
+             select = c("Country Name","2007","2008","2009",                                                         "2010","2011","2012","2013","2014","2015","2016"))
+pupils.teachers <- transform(x10,teach = rowMeans(x10[,2:11], na.rm = TRUE))
+
+x11 <- fread("Rural Population.csv", header = TRUE,
+             select = c("Country Name","2007","2008","2009",                                                        "2010","2011","2012","2013","2014","2015","2016"))
+rural.population<- transform(x11,rural = rowMeans(x11[,2:11], na.rm = TRUE))
+
+#merge dataset together#
+
+merge1 <- merge(literacy.rate, agriculture,by = "Country Name")
+merge11 <- merge1[,c("Country Name","literacy","agri")]
+merge2 <- merge(merge11, GDP, by = "Country Name")
+merge22 <- merge2[,c("Country Name","literacy","agri","GDP")]
+merge3 <- merge(merge22, gini ,by = "Country Name")
+merge33 <- merge3[,c("Country Name","literacy","agri","GDP","gini")]
+merge4 <- merge(merge33, govern.expense,by = "Country Name")
+merge44 <- merge4[,c("Country Name","literacy","agri","GDP","gini","edu")]
+merge5 <- merge(merge44, life.expectancy,by = "Country Name")
+merge55 <- merge5[,c("Country Name","literacy","agri","GDP","gini","edu","life")]
+merge6 <- merge(merge55, undernourishment,by = "Country Name")
+merge66 <- merge6[,c("Country Name","literacy","agri","GDP","gini","edu","life","unourish")]
+merge7 <- merge(merge66, primary.completion,by = "Country Name")
+merge77<- merge7[,c("Country Name","literacy","agri","GDP","gini","edu","life","unourish","pcompl")]
+merge8 <- merge(merge77, primary.enrollment,by = "Country Name")
+merge88<- merge8[,c("Country Name","literacy","agri","GDP","gini","edu","life","unourish","pcompl","penroll")]
+merge9 <- merge(merge88, pupils.teachers,by = "Country Name")
+merge99<- merge9[,c("Country Name","literacy","agri","GDP","gini","edu","life","unourish","pcompl","penroll","teach")]
+merge10 <- merge(merge99, rural.population,by = "Country Name")
+data<- merge10[,c("Country Name","literacy","agri","GDP","gini","edu","life","unourish","pcompl","penroll","teach","rural")]
+
+#omit records with missing value#
+datanew <- na.omit(data)
+
+#
+write.csv(datanew, "HW3-Qiaoye Zhang-002.csv")
+
+####################################################################
+################## basic check and relevant summary ################
+####################################################################
+
+# data type checks #
+
+datanew
+
+# data range checks #
+
+# literacy: Literacy rate, adult total (% of people ages 15 and above)
+summary(datanew$literacy)
+any(datanew$literacy < 0)
+any(datanew$literacy > 100)
+
+# agri: Agriculture, forestry, and fishing, value added (% of GDP)
+summary(datanew$agri)
+any(datanew$agri < 0)
+any(datanew$agri > 100)
+
+# GDP: GDP per capita (current US$)
+summary(datanew$GDP)
+
+# gini: GINI index (World Bank estimate) (% of max area)
+summary(datanew$gini)
+any(datanew$gini < 0)
+any(datanew$gini > 100)
+
+# edu: Government expenditure on education, total (% of government expenditure)
+summary(datanew$edu)
+any(datanew$edu < 0)
+any(datanew$edu > 100)
+
+# life: Life expectancy at birth, total (years)
+summary(datanew$life)
+
+# unourish: Prevalence of undernourishment (% of population)
+summary(datanew$unourish)
+any(datanew$unourish < 0)
+any(datanew$unourish > 100)
+
+# pcompl: Primary completion rate, total (% of relevant age group)
+summary(datanew$pcompl)
+any(datanew$pcompl < 0)
+any(datanew$pcompl > 100)
+################
+
+# penroll: School enrollment, primary (% net)
+summary(datanew$penroll)
+any(datanew$penroll < 0)
+any(datanew$penroll > 100)
+
+# teach: Pupil-teacher ratio, primary (%)
+summary(datanew$teach)
+any(datanew$teach < 0)
+any(datanew$teach > 100)
+
+# rural: Rural population 
+summary(datanew$rural)
+
+#########################
+### data histogram ######
+#########################
+
+h.literacy <- datanew %>% ggplot(aes(literacy)) + 
+  geom_histogram(bins=15, col="black", fill="cadetblue") +
+  ggtitle("Histogram for literacy rate") +
+  labs(x="literacy rate(%)") +
+  geom_text(label = "skewed left", x=50, y=20, size=10)+
+  theme.info
+
+h.agri <- datanew %>% ggplot(aes(agri)) + 
+  geom_histogram(bins=15, col="black", fill="cadetblue") +
+  ggtitle("Histogram for agricultural value added ") +
+  labs(x="agricultural value added( % of GDP)") +
+  geom_text(label = "skewed right", x=40, y=15, size=10)+
+  theme.info
+
+h.GDP <- datanew %>% ggplot(aes(GDP)) + 
+  geom_histogram(bins=15, col="black", fill="cadetblue") +
+  ggtitle("Histogram for GDP") +
+  labs(x="GDP ( current US$)") +
+  geom_text(label = "skewed right", x=25000, y=15, size=10)+
+  theme.info
+
+h.gini <- datanew %>% ggplot(aes(gini)) + 
+  geom_histogram(bins=15, col="black", fill="cadetblue") +
+  ggtitle("Histogram for GINI index") +
+  labs(x="GINI index (%)") +
+  geom_text(label = "Roughly Symmetric", x=51, y=12.5, size=10)+
+  theme.info
+
+h.edu <- datanew %>% ggplot(aes(edu)) + 
+  geom_histogram(bins=15, col="black", fill="cadetblue") +
+  ggtitle("Histogram for education expenditure") +
+  labs(x="education expenditure (% of GDP)") +
+  geom_text(label = "Roughly Symmetric", x=20, y=13, size=10)+
+  theme.info
+
+h.life <- datanew %>% ggplot(aes(life)) + 
+  geom_histogram(bins=15, col="black", fill="cadetblue") +
+  ggtitle("Histogram for life expectancy") +
+  labs(x="life expectancy (years)") +
+  geom_text(label = "slightly skewed left", x=60, y=12.5, size=10)+
+  theme.info
+
+h.unourish <- datanew %>% ggplot(aes(unourish)) + 
+  geom_histogram(bins=15, col="black", fill="cadetblue") +
+  ggtitle("Histogram for undernourishment") +
+  labs(x="undernourishment (%)") +
+  geom_text(label = "skewed right", x=35, y=15, size=10)+
+  theme.info
+
+h.pcompl <- datanew %>% ggplot(aes(pcompl)) + 
+  geom_histogram(bins=15, col="black", fill="cadetblue") +
+  ggtitle("Histogram for primary completion") +
+  labs(x="primary completion (%)") +
+  geom_text(label = "skewed left", x=60, y=15, size=10)+
+  theme.info
+
+h.penroll <- datanew %>% ggplot(aes(penroll)) + 
+  geom_histogram(bins=15, col="black", fill="cadetblue") +
+  ggtitle("Histogram for primary enrollment") +
+  labs(x="Primary enrollment (%) ") +
+  geom_text(label = "skewed left", x=50, y=20, size=10)+
+  theme.info
+
+h.teach <- datanew %>% ggplot(aes(teach)) + 
+  geom_histogram(bins=15, col="black", fill="cadetblue") +
+  ggtitle("Histogram for pupil-teacher rate") +
+  labs(x="rate") +
+  geom_text(label = "skewed left", x=75, y=15, size=10)+
+  theme.info
+
+h.rural <- datanew %>% ggplot(aes(rural)) + 
+  geom_histogram(bins=15, col="black", fill="cadetblue") +
+  ggtitle("Histogram for rural population") +
+  labs(x="rural (%)") +
+  geom_text(label = "roughly symmetric", x=60, y=12.5, size=10)+
+  theme.info
+
+###################################
+######### Box Plot#################
+###################################
+
+b1 <- datanew %>% 
+  ggplot(aes(x="", y=literacy)) +
+  geom_boxplot(fill="cadetblue") +
+  labs(x="") +
+  ggtitle("Box Plot of literacy") +
+  theme.info
+
+b2 <- datanew %>% 
+  ggplot(aes(x="", y=LNagri)) +
+  geom_boxplot(fill="cadetblue") +
+  labs(x="") +
+  ggtitle("Box Plot of LNagri") +
+  theme.info
+
+b3 <- datanew %>% 
+  ggplot(aes(x="", y=LNGDP)) +
+  geom_boxplot(fill="cadetblue") +
+  labs(x="") +
+  ggtitle("Box Plot of LNGDP") +
+  theme.info
+
+b4 <- datanew %>% 
+  ggplot(aes(x="", y=gini)) +
+  geom_boxplot(fill="cadetblue") +
+  labs(x="") +
+  ggtitle("Box Plot of gini") +
+  theme.info
+
+b5 <- datanew %>% 
+  ggplot(aes(x="", y=edu)) +
+  geom_boxplot(fill="cadetblue") +
+  labs(x="") +
+  ggtitle("Box Plot of edu") +
+  theme.info
+
+b6 <- datanew %>% 
+  ggplot(aes(x="", y=life)) +
+  geom_boxplot(fill="cadetblue") +
+  labs(x="") +
+  ggtitle("Box Plot of life") +
+  theme.info
+
+b7 <- datanew %>% 
+  ggplot(aes(x="", y=LNunourish)) +
+  geom_boxplot(fill="cadetblue") +
+  labs(x="") +
+  ggtitle("Box Plot of LNunourish") +
+  theme.info
+
+b8 <- datanew %>% 
+  ggplot(aes(x="", y=pcompl)) +
+  geom_boxplot(fill="cadetblue") +
+  labs(x="") +
+  ggtitle("Box Plot of pcompl") +
+  theme.info
+
+b9 <- datanew %>% 
+  ggplot(aes(x="", y=LNpenroll)) +
+  geom_boxplot(fill="cadetblue") +
+  labs(x="") +
+  ggtitle("Box Plot of LNpenroll") +
+  theme.info
+
+b10 <- datanew %>% 
+  ggplot(aes(x="", y=LNteach)) +
+  geom_boxplot(fill="cadetblue") +
+  labs(x="") +
+  ggtitle("Box Plot of LNteach") +
+  theme.info
+
+b11 <- datanew %>% 
+  ggplot(aes(x="", y=rural)) +
+  geom_boxplot(fill="cadetblue") +
+  labs(x="") +
+  ggtitle("Box Plot of rural") +
+  theme.info
+
+```
+
+```{r,echo=FALSE,results='hide'}
+
+#show countries
+country <- datanew[,1]
+knitr::kable(country)
+
+```
+
+```{r, echo=FALSE,fig.cap="CAPTION FOR THE FIGURE", fig.width=20, fig.height=30}
+
+#show histogram of variables distribution
+
+grid.arrange(arrangeGrob(h.literacy,h.agri,h.GDP,h.gini,h.edu, h.life,
+                         h.unourish,h.pcompl,h.penroll,h.teach,h.rural, 
+                         ncol=3,nrow=4))
+```
+
+METHODS 
+
+According to the above histograms of variables, agriculture value added, GDP, undernourishment rate and pupil to teacher rate are highly skewed. Thus, we made logarithmic transformation on these four variables first. Figure 2 shows the distributions after transformation. Then we applied scatter plot on all the variables to have a direct look at their relationship. Figure 3 shows the result. Also, box plots were made to see whether exists a potential outlier point. 
+
+To begin with model building, we built a regression model to check model assumption and to see whether other variables needed transformation as well. According to the graph in figure 4, standardized residual plot with primary enrollment rate showed a fan shape pattern, which indicate potential violating assumption of our model. In order to better fit the model, we performed logarithmic transformation on this variable. 
+
+Then we fitted regression model again with new version data set. Figure 5 showed basic diagnostic plots of model. Based on the result, we can roughly conclude that assumptions of error have been satisfied. Then we can move on to check multicollinearity. Based on the result, VIF of LNGDP is 13.69 and VIF of LNagri is 6.47, which suggests collinearity exits. Since correlation between LNagri and LNGDP is high and GDP is an essential measurement, we dropped LNagri.
+
+After transforming and deleting variables, our final data set was built. Then we applied backward variable selection to determine the final regression model. Table 1 shows the relative criteria of each step. Based on the result, model with 6,5 and 3 variables performed better than others. Since they are nested models, partial F-test was applied to compare their performance. As table 2 shown below, only test between 5 variables and 3 variables, hypothesis H0 was rejected significant.  As a result, we choose regression model with 3 variables to be our final one. Figure 6 shows the regression assumption checking plots. According to the result, standard residual plot has a relative flat line. In Normal Quantile Plot points also can form a straight line. And a roughly flat line showed in Scale-Location plot. Thus we can conclude the error of final model are normally distributed with mean equals to zero and constant variance. Since dataset was from World Bank website, we believe they are measured without error.
+ 
+
+
+```{r,echo=FALSE}
+
+###### logarithmic transformation of agri variable####################
+
+h1.agri <- datanew %>% ggplot(aes(log(agri))) + 
+  geom_histogram(bins=15, col="black", fill="cadetblue") +
+  ggtitle("Histogram for log(agriculture)") +
+  labs(x="log(agriculture) (log(%))") +
+  theme.info
+
+###### logarithmic transformation of GDP variable####################
+
+h1.GDP <- datanew %>% ggplot(aes(log(GDP))) + 
+  geom_histogram(bins=15, col="black", fill="cadetblue") +
+  ggtitle("Histogram for log(GDP)") +
+  labs(x="log(GDP) log((US$))") +
+  theme.info
+
+###### logarithmic transformation of unourish variable####################
+
+h1.unourish <- datanew %>% ggplot(aes(log(unourish))) + 
+  geom_histogram(bins=15, col="black", fill="cadetblue") +
+  ggtitle("Histogram for log(undernourishment)") +
+  labs(x="log(undernourishment) (log(%))") +
+  theme.info
+
+###### logarithmic transformation of teach variable####################
+
+h1.teach <- datanew %>% ggplot(aes(log(teach))) + 
+  geom_histogram(bins=15, col="black", fill="cadetblue") +
+  ggtitle("Histogram for log(pupil-teacher rate)") +
+  labs(x="log(pupil-teacher) (log(%))") +
+  theme.info
+```
+
+```{r echo=FALSE,fig.cap="CAPTION FOR THE FIGURE", fig.width=8, fig.height=8}
+
+#show histogram after transformation
+grid.arrange(arrangeGrob(h1.agri,h1.GDP,h1.unourish,h1.teach,
+                         ncol=2,nrow=2))
+
+```
+
+```{r echo=FALSE,results='hide'}
+
+################################################################
+############## transformed data ################################
+################################################################
+
+datanew <- datanew %>%
+        mutate("LNagri" = log(datanew$agri),
+               "LNGDP" = log(datanew$GDP),
+               "LNunourish" = log(datanew$unourish),
+               "LNteach"= log(datanew$teach))
+
+###scatter plot code####
+
+##############################################################
+########### fitted model and check assumption#################
+###############################################################
+
+lm.t <- lm(literacy ~ LNagri + LNGDP + gini + edu + life + LNunourish + pcompl + penroll + LNteach + rural,data=datanew)
+summary(lm.t)
+
+##diagnostic plot code#######
+
+lmt.augment <- augment(lm.t)
+lmt.augment
+
+############ Standardized Residual Plot#########################
+
+# standardized residuals vs. y.hat
+sr1 <- lmt.augment %>% 
+  ggplot(aes(x=.fitted, y=.std.resid)) +
+  geom_point(size=2, col="firebrick") + 
+  geom_hline(yintercept=0, lty=2, col="gray50") +
+  labs(x="fitted values (log(%))", y="standardized residuals") +
+  ggtitle("Std. Residuals vs. Fitted Values") +
+  theme.info
+
+# standardized residuals vs. each x variable
+sr2 <- lmt.augment %>%
+  ggplot(aes(x=LNagri, y=.std.resid)) +
+  geom_point(size=2, col="firebrick") + 
+  geom_hline(yintercept=0, lty=2, col="gray50") +
+  labs(x="LNagri (log(%))", y="standardized residuals") +
+  ggtitle("Std. Residuals vs. log(agri)") +
+  theme.info
+
+sr3 <- lmt.augment %>%
+  ggplot(aes(x=LNGDP, y=.std.resid)) +
+  geom_point(size=2, col="firebrick") + 
+  geom_hline(yintercept=0, lty=2, col="gray50") +
+  labs(x="LNGDP (log($))", y="standardized residuals") +
+  ggtitle("Std. Residuals vs. log(GDP)") +
+  theme.info
+
+sr4 <- lmt.augment %>%
+  ggplot(aes(x=gini, y=.std.resid)) +
+  geom_point(size=2, col="firebrick") + 
+  geom_hline(yintercept=0, lty=2, col="gray50") +
+  labs(x="gini (%)", y="standardized residuals") +
+  ggtitle("Std. Residuals vs. gini") +
+  theme.info
+
+sr5 <- lmt.augment %>%
+  ggplot(aes(x=edu, y=.std.resid)) +
+  geom_point(size=2, col="firebrick") + 
+  geom_hline(yintercept=0, lty=2, col="gray50") +
+  labs(x="edu (%)", y="standardized residuals") +
+  ggtitle("Std. Residuals vs. edu") +
+  theme.info
+
+sr6 <- lmt.augment %>%
+  ggplot(aes(x=life, y=.std.resid)) +
+  geom_point(size=2, col="firebrick") + 
+  geom_hline(yintercept=0, lty=2, col="gray50") +
+  labs(x="life (years)", y="standardized residuals") +
+  ggtitle("Std. Residuals vs. life)") +
+  theme.info
+
+sr7 <- lmt.augment %>%
+  ggplot(aes(x=LNunourish, y=.std.resid)) +
+  geom_point(size=2, col="firebrick") + 
+  geom_hline(yintercept=0, lty=2, col="gray50") +
+  labs(x="LNunourish (log(%))", y="standardized residuals") +
+  ggtitle("Std. Residuals vs. log(unourishment)") +
+  theme.info
+
+sr8 <- lmt.augment %>%
+  ggplot(aes(x=pcompl, y=.std.resid)) +
+  geom_point(size=2, col="firebrick") + 
+  geom_hline(yintercept=0, lty=2, col="gray50") +
+  labs(x="pcompl (%)", y="standardized residuals") +
+  ggtitle("Std. Residuals vs. pcompl") +
+  theme.info
+
+sr9 <- lmt.augment %>%
+  ggplot(aes(x=penroll, y=.std.resid)) +
+  geom_point(size=3, col="firebrick") + 
+  geom_hline(yintercept=0, lty=2, col="gray50") +
+  labs(x="penroll (%)", y="standardized residuals") +
+  ggtitle("Std. Residuals vs. penroll") +
+  theme.info
+###################outlier fan
+
+sr10 <- lmt.augment %>%
+  ggplot(aes(x=LNteach, y=.std.resid)) +
+  geom_point(size=2, col="firebrick") + 
+  geom_hline(yintercept=0, lty=2, col="gray50") +
+  labs(x="LNteach(log(%))", y="standardized residuals") +
+  ggtitle("Std. Residuals vs. log(teach)") +
+  theme.info
+
+sr11 <- lmt.augment %>%
+  ggplot(aes(x=rural, y=.std.resid)) +
+  geom_point(size=2, col="firebrick") + 
+  geom_hline(yintercept=0, lty=2, col="gray50") +
+  labs(x="rural (%", y="standardized residuals") +
+  ggtitle("Std. Residuals vs. rural") +
+  theme.info
+
+##########################################################
+########################## transform penroll variable#####
+#############################################################
+
+datanew <- datanew %>%
+        mutate("LNpenroll"= log(datanew$penroll))
+
+
+lm.t1 <- lm(literacy ~ LNagri + LNGDP + gini + edu + life + 
+              LNunourish + pcompl + LNpenroll +LNteach + rural,data=datanew)
+summary(lm.t1)
+
+###diagnostic plot code####
+
+lmt1.augment <- augment(lm.t1)
+lmt1.augment
+
+sr9.trans <- lmt1.augment %>%
+  ggplot(aes(x=LNpenroll, y=.std.resid)) +
+  geom_point(size=3, col="firebrick") + 
+  geom_hline(yintercept=0, lty=2, col="gray50") +
+  labs(x="penroll log((%))", y="standardized residuals") +
+  ggtitle("Std. Residuals vs. log(penroll)") +
+  theme.info
+
+
+```
+
+```{r,echo=FALSE,fig.cap="CAPTION FOR THE FIGURE", fig.width=22, fig.height=22}
+
+pairs(datanew[,c("literacy","LNagri","LNGDP","gini","edu","life","LNunourish",
+                 "pcompl","penroll","LNteach","rural")],
+      las=TRUE, pch=19, col="orange")
+```
+
+```{r,echo=FALSE,fig.cap="CAPTION FOR THE FIGURE", fig.width=5, fig.height=5}
+
+grid.arrange(arrangeGrob(sr9))
+
+```
+
+```{r,echo=FALSE,fig.cap="CAPTION FOR THE FIGURE", fig.width=22, fig.height=22}
+
+par(mfrow=c(2,2), mar=c(5, 5, 4, 2)+0.1)   
+plot(lm.t1, las=TRUE, cex.main=1.4, cex.axis=1.4, cex.lab=1.4)
+```
+
+```{r,echo=FALSE}
+#######################################################################
+################################ multicollinearity check###################
+##########################################################################
+
+cor(datanew[,c("LNagri","LNGDP","gini","edu","life","LNunourish",
+               "pcompl","LNpenroll","LNteach","rural")])
+
+
+#### drop agri variable######
+vif(lm.t1)
+
+lm.t2 <- lm(literacy ~ LNGDP + gini + edu + life + 
+              LNunourish + pcompl + LNpenroll +LNteach + rural,data=datanew)
+vif(lm.t2)
+```
+
+```{r,echo=FALSE,results='hide'}
+
+########################################################################
+######################### variable selection ##########################
+#######################################################################
+
+# backward stepwise: literacy against all other variables in the data frame
+
+datanew.set <- data.frame("literacy" = datanew$literacy,
+                          "LNGDP" = log(datanew$GDP),
+                          "gini" = datanew$gini,
+                          "edu" = datanew$edu,
+                          "life" = datanew$life,
+                          "LNunourish" = log(datanew$unourish),
+                          "pcompl" = datanew$pcompl,
+                          "LNpenroll"= log(datanew$penroll),
+                          "LNteach"= log(datanew$teach),
+                          "rural" = datanew$rural)
+
+backward.step <- regsubsets(literacy ~ ., data=datanew.set, method="backward", nvmax=9)
+summary(backward.step)
+
+names(summary(backward.step))
+
+# sqrt of residual sum of squares/(n-p-1) --> RMSE
+sqrt(summary(backward.step)$rss/(nrow(datanew.set) - 1 - (1:9)))
+# R^2 adjusted
+summary(backward.step)$adjr2
+# Cp
+summary(backward.step)$cp
+# BIC
+summary(backward.step)$bic
+
+
+###########################################################
+##### 6 variables#########################################
+
+lm.6 <- lm(literacy ~  LNGDP +gini + LNunourish + pcompl 
+               + LNpenroll + LNteach,data=datanew.set)
+summary(lm.6)
+
+#### 5 variables #########################################
+
+lm.5 <- lm(literacy ~ LNGDP +gini + pcompl + LNpenroll + LNteach,data=datanew.set)
+summary(lm.5)
+
+#### 3 variables ############################################
+
+lm.3 <- lm(literacy ~  LNGDP + pcompl + LNpenroll ,data=datanew.set)
+summary(lm.3)
+
+
+#############################################################
+################### partial F-test############################
+
+anova(lm.6, lm.5)
+
+anova(lm.6, lm.3)
+
+```
+
+```{r,echo=FALSE}
+
+result <- anova(lm.5, lm.3)
+knitr::kable(result)
+
+```
+
+```{r,echo=FALSE,results='hide'}
+########################################################
+########## assumption check#############################
+########################################################
+
+lm.3 <- lm(literacy ~ LNGDP + pcompl + LNpenroll,data=datanew.set)
+
+
+lm3.augment <- augment(lm.3)
+#lm3.augment
+
+############ Standardized Residual Plot#########################
+
+# standardized residuals vs. y.hat
+r1 <- lm3.augment %>% 
+  ggplot(aes(x=.fitted, y=.std.resid)) +
+  geom_point(size=2, col="firebrick") + 
+  geom_hline(yintercept=0, lty=2, col="gray50") +
+  labs(x="fitted values (%)", y="standardized residuals") +
+  ggtitle("Std. Residuals vs. Fitted Values") +
+  theme.info
+
+# standardized residuals vs. each x variable
+
+r2 <- lm3.augment %>%
+  ggplot(aes(x=LNGDP, y=.std.resid)) +
+  geom_point(size=2, col="firebrick") + 
+  geom_hline(yintercept=0, lty=2, col="gray50") +
+  labs(x="LNGDP (log($))", y="standardized residuals") +
+  ggtitle("Std. Residuals vs. log(GDP)") +
+  theme.info
+
+r3 <- lm3.augment %>%
+  ggplot(aes(x=pcompl, y=.std.resid)) +
+  geom_point(size=2, col="firebrick") + 
+  geom_hline(yintercept=0, lty=2, col="gray50") +
+  labs(x="pcompl (%)", y="standardized residuals") +
+  ggtitle("Std. Residuals vs. pcompl") +
+  theme.info
+
+r4 <- lm3.augment %>%
+  ggplot(aes(x=LNpenroll, y=.std.resid)) +
+  geom_point(size=2, col="firebrick") + 
+  geom_hline(yintercept=0, lty=2, col="gray50") +
+  labs(x="penroll log((%))", y="standardized residuals") +
+  ggtitle("Std. Residuals vs. LNpenroll") +
+  theme.info
+
+anova(lm.3)
+
+```
+
+```{r,echo=FALSE,fig.cap="CAPTION FOR THE FIGURE", fig.width=22, fig.height=22}
+
+par(mfrow=c(2,2), mar=c(5, 5, 4, 2)+0.1)   
+plot(lm.3, las=TRUE, cex.main=1.4, cex.axis=1.4, cex.lab=1.4)
+
+```
+
+```{r,echo=FALSE}
+
+summary(lm.3)
+
+
+```
+
+Adjusted R-squared of our final model is 0.8103. To evaluate the model, we performed overall F-test and t-test. (??= 0:05) 
+Overall F-test : Hypothesis: H0 : LNGDP = ??pcompl = ??penroll = 0 Ha : at least one slope is not zero F = 128.7 with p=3 and n-(p+1)=96-4=92 degrees of freedom, reject H0(i.e., p-value: < 2.2e-16).For t-test, we made the hypothesis H0:slope of explanatory variable is 0, H1: slope of explanatory variable is not 0, with 92 degree of freedom. Slope of LNGDP is statistically significant(i.e., t1=5.861, p= 7.11e-08). slope of pcompl is statistically significant (i.e., t2= 6.294, p-value=1.04e-08) slope of LNpenroll is statistically significant (i.e., t3= 2.173, p-value=0.032)
+
+
+DISCUSSION 
+
+Our final regression model: ^literacy=-124.5361717 (%) + 7.0434408 (log($)) LNGDP + 0.5896506 (%) pcompl + 21.5228372 (log(%)) LNpenroll
+As model result shown before, slope for LNGDP suggests the log(GDP) increase of 1%, holding the primary completion rate and log(enrollment rate) constant, is associated with a literacy rate increase of roughly 7.04 percentage on average. slope for pcompl suggests,the primary completion rate increase of 1 percentage, holding the LNGDP and log(enrollment rate) constant, is associated with a literacy rate increase of roughly 0.58 percentage on average. slope for log(penroll) suggests the log of primary enrollment increase of 1%, holding the LNGDP and primary completion rate constant, is associated with a literacy rate increase of roughly 21.522 percentage on average.
+This model reveals national economic level and primary education have large impact on the overall national literacy rate. To raise literacy people in one country, government should first put energy and money on primary education. Even though strong result was produced, there are still limitations in this model. We would like to use statitics with long years and try other variables to improve regression model.
+
+
+
+References
+
+General Information on the World Bank. https://data.worldbank.org/indicator.
+Dorte Verner,2005.  What Factors Influence World Literacy? Is Africa Different?, World Bank Policy Research Working Paper 3496
